@@ -1,10 +1,10 @@
 """
 data/download_data.py
 ---------------------
-Download and prepare datasets for HierSolv.
+Load and prepare datasets for HierSolv.
 
 Supports:
-    - BigSolDB (Kadivar et al., Nature Chem. 2023)
+    - BigSolDB (Kadivar et al., Nature Chem. 2023) - loaded from local BigSolDBv2.1.csv
     - ESOL (Delaney, J. Chem. Inf. Comput. Sci. 2004)
     - BNNLabs solubility dataset
     - PHYSPROP
@@ -19,50 +19,64 @@ import requests
 from pathlib import Path
 
 
-def download_bigsoldb(output_path: str = 'data/bigsoldb.csv'):
+def load_bigsoldb_local(output_path: str = 'data/bigsoldb.csv'):
     """
-    Download BigSolDB dataset (Kadivar et al., 2023).
+    Load BigSolDB dataset from local BigSolDBv2.1.csv file.
     
-    Public access via zenodo or accompanying repository.
-    Falls back to a minimal example if unavailable.
+    Maps columns:
+        SMILES_Solute -> solute_smiles
+        SMILES_Solvent -> solvent_smiles
+        LogS(mol/L) -> logS
+        Temperature_K -> temperature (convert to Celsius if needed)
+        Solvent -> solvent_name
     """
-    print("Attempting to download BigSolDB...")
+    bigsoldb_path = Path('.') / 'BigSolDBv2.1.csv'
+    densities_path = Path('.') / 'BigSolDBv2.1_densities.csv'
     
-    # Note: Replace with actual URL from the paper's data repository
-    url = "https://zenodo.org/record/XXXXXXX/files/bigsoldb.csv"
+    if not bigsoldb_path.exists():
+        print(f"⚠ BigSolDB file not found at {bigsoldb_path}")
+        return None
+    
+    print(f"Loading BigSolDB from {bigsoldb_path}...")
     
     try:
-        response = requests.get(url, timeout=30)
-        if response.status_code == 200:
-            with open(output_path, 'w') as f:
-                f.write(response.text)
-            df = pd.read_csv(output_path)
-            print(f"✓ Downloaded BigSolDB: {len(df)} samples")
-            return df
+        # Load main data
+        df = pd.read_csv(bigsoldb_path)
+        
+        # Load densities (optional, for enrichment)
+        if densities_path.exists():
+            densities = pd.read_csv(densities_path)
+            print(f"  Loaded density data for {len(densities)} (solvent, temperature) pairs")
+        
+        # Rename columns to standard format
+        df_processed = pd.DataFrame({
+            'solute_smiles': df['SMILES_Solute'],
+            'solvent_smiles': df['SMILES_Solvent'],
+            'logS': df['LogS(mol/L)'],
+            'temperature': df['Temperature_K'],  # In Kelvin
+            'solvent_name': df['Solvent'],
+            'compound_name': df.get('Compound_Name', ''),
+            'cas': df.get('CAS', ''),
+            'pubchem_cid': df.get('PubChem_CID', ''),
+            'fda_approved': df.get('FDA_Approved', ''),
+            'source': df.get('Source', ''),
+        })
+        
+        # Remove rows with missing SMILES or LogS
+        df_processed = df_processed.dropna(subset=['solute_smiles', 'solvent_smiles', 'logS'])
+        
+        df_processed.to_csv(output_path, index=False)
+        print(f"✓ Loaded BigSolDB: {len(df_processed):,} samples")
+        print(f"  - Unique solvents: {df_processed['solvent_name'].nunique()}")
+        print(f"  - Temperature range: {df_processed['temperature'].min():.1f} - {df_processed['temperature'].max():.1f} K")
+        print(f"  - LogS range: {df_processed['logS'].min():.2f} - {df_processed['logS'].max():.2f}")
+        print(f"  - Saved to: {output_path}")
+        
+        return df_processed
+        
     except Exception as e:
-        print(f"⚠ Download failed: {e}")
-
-    # Fallback: create minimal example dataset
-    print("Creating minimal example dataset...")
-    data = {
-        'solute_smiles': [
-            'CC(=O)Oc1ccccc1C(=O)O',  # Aspirin
-            'CN1C=NC2=C1C(=O)N(C(=O)N2C)C',  # Caffeine
-            'O=C(O)Cc1ccccc1Nc2c(Cl)cccc2Cl',  # Diclofenac
-        ],
-        'solvent_smiles': [
-            'O',  # Water
-            'CC(C)O',  # Isopropanol
-            'CCO',  # Ethanol
-        ],
-        'logS': [-2.5, -0.1, -1.8],
-        'temperature': [298.15, 298.15, 298.15],
-        'solvent_name': ['water', 'isopropanol', 'ethanol'],
-    }
-    df = pd.DataFrame(data)
-    df.to_csv(output_path, index=False)
-    print(f"✓ Created example dataset: {len(df)} samples at {output_path}")
-    return df
+        print(f"⚠ Error loading BigSolDB: {e}")
+        return None
 
 
 def download_esol(output_path: str = 'data/esol.csv'):
@@ -98,10 +112,10 @@ def download_physprop(output_path: str = 'data/physprop.csv'):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Download HierSolv datasets')
+    parser = argparse.ArgumentParser(description='Load HierSolv datasets')
     parser.add_argument('--dataset', type=str, default='bigsoldb',
                         choices=['bigsoldb', 'esol', 'physprop'],
-                        help='Dataset to download')
+                        help='Dataset to load/download')
     parser.add_argument('--output', type=str,
                         help='Output CSV path')
     args = parser.parse_args()
@@ -113,7 +127,7 @@ def main():
         args.output = f'data/{args.dataset}.csv'
 
     if args.dataset == 'bigsoldb':
-        df = download_bigsoldb(args.output)
+        df = load_bigsoldb_local(args.output)
     elif args.dataset == 'esol':
         df = download_esol(args.output)
     elif args.dataset == 'physprop':
