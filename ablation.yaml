@@ -1,0 +1,50 @@
+# configs/ablation.yaml
+# One entry per ablation variant
+
+base_config: configs/hiersolv_default.yaml
+
+variants:
+  full_hiersolv:
+    description: "Full model — all components active"
+    overrides: {}
+
+  no_csgm_multisite:
+    description: "Remove multi-site CSGM; fall back to K=1 (MolMerger-style 2-bond)"
+    overrides:
+      csgm:
+        K_frac: 0.0
+        K_min: 1
+
+  no_temperature:
+    description: "Remove temperature conditioning (TC-GRU receives zero embedding)"
+    overrides:
+      model:
+        temp_dim: 0
+
+  no_hierarchy:
+    description: "Flat single-level GNN (L2=0, merged graph like MolMerger)"
+    overrides:
+      model:
+        L2: 0
+
+  no_edl:
+    description: "Replace EDL head with MSE point-estimate head"
+    overrides:
+      training:
+        lam_nig: 0.0
+
+  no_vhoff:
+    description: "Remove van't Hoff physical prior regularizer"
+    overrides:
+      training:
+        lam_vhoff: 0.0
+
+  no_residual:
+    description: "Remove residual connections in HierGAT"
+    overrides:
+      model:
+        use_residual: false
+
+k_sensitivity:
+  description: "Sweep K from 1 to 12"
+  K_values: [1, 2, 3, 4, 5, 6, 8, 10, 12]

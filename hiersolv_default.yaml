@@ -1,0 +1,53 @@
+# configs/hiersolv_default.yaml
+# Full HierSolv configuration — all hyperparameters documented
+
+experiment:
+  name: hiersolv_full
+  seed: 42
+  device: auto          # 'auto' | 'cpu' | 'cuda'
+  use_wandb: false
+  output_dir: results/
+
+data:
+  data_dir: data/raw/
+  processed_dir: data/processed/
+  split_strategy: scaffold   # 'random' | 'scaffold' | 'stratified_solvent'
+  train_frac: 0.7
+  val_frac: 0.15
+  test_frac: 0.15
+  n_folds: 5                 # for cross-validation
+  min_solute_freq: 2         # minimum solutes per solvent (evaluation set)
+  train_solute_freq: 120     # minimum solutes per solvent (training set)
+  temperature_ref: 273.15    # reference temperature (K)
+
+csgm:
+  K_frac: 0.30               # fraction of min(n_u, n_v) atoms selected as anchors
+  K_min: 3                   # minimum anchors regardless of molecule size
+  tau_init: 0.50             # initial pruning threshold (learned during training)
+
+model:
+  node_in: 19               # atom feature dimension
+  edge_in: 9                # bond feature dimension
+  hidden: 256
+  heads: 8
+  L1: 3                     # intra-molecular GAT layers
+  L2: 2                     # inter-molecular GAT layers
+  temp_dim: 32
+  dropout: 0.15
+
+training:
+  epochs: 200
+  batch_size: 32
+  lr: 3.0e-4
+  weight_decay: 1.0e-5
+  grad_clip: 1.0
+  patience: 25              # early stopping
+  scheduler: cosine_warmup
+  warmup_steps: 500
+  lam_nig: 0.01             # evidential loss regularization
+  lam_vhoff: 0.005          # van't Hoff physical prior weight
+
+evaluation:
+  metrics: [mae, rmse, r2, ece, mean_epistemic_unc]
+  ood_solvents: []          # list of SMILES for OOD evaluation
+  uncertainty_threshold: 0.8
